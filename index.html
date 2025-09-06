@@ -110,7 +110,7 @@
         // PASTE YOUR GOOGLE SHEET "PUBLISH TO WEB" CSV LINK HERE
         const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTfs7Nl2r2tn00rXXbk_ZMMuX9mMfLxr_nAIRM9DfHivbhvNmJZIOQvgXKEworzW36hb4YxWj25Ddkh/pub?gid=0&single=true&output=csv";
         // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyTCcqn9sloT3cFRav8iudKX2jjYWsu16cUhYd_4h8XDGSW3XPbWoM1Ko_0XfxbH8rL/exec";
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyTCcqn9sloT3cFRav8iudKX2jjYWsu16cUhYd_4h8XDGSW3XPbWoM1Ko_0H8rL/exec";
         // -------------------
 
         const DOM = {
@@ -135,7 +135,11 @@
         document.addEventListener('DOMContentLoaded', handleInitialLoad);
         
         async function fetchAndProcessData(showLoader = true) {
-            if (showLoader) DOM.appLoader.classList.remove('hidden');
+            if (showLoader) {
+                DOM.setupSection.style.display = 'none';
+                DOM.appContainer.classList.add('hidden');
+                DOM.appLoader.style.display = 'flex';
+            }
             if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes("YOUR_GOOGLE_SHEET")) {
                 showToast("Error: Google Sheet link is not configured.", "error"); logout(); return false;
             }
@@ -155,7 +159,7 @@
             } catch (error) {
                 console.error("Failed to fetch or process sheet data:", error); showToast("Failed to load data from Google Sheet.", "error"); logout(); return false;
             } finally {
-                 if (showLoader) DOM.appLoader.classList.add('hidden');
+                 if (showLoader) DOM.appLoader.style.display = 'none';
             }
         }
 
@@ -166,17 +170,17 @@
                 if (!newOrdersData[orderId]) {
                     newOrdersData[orderId] = { id: orderId, name: row['Name'], email: row['Email'], rollNo: row['Roll No'], items: [], emailStatus: row['EmailStatus'], deliveryStatus: row['DeliveryStatus'] };
                 }
-                newOrdersData[orderId].items.push({ name: row['Item Name'], size: row['Size'], color: row['Color'], customName: row['Custom Name'] });
+                newOrdersData[orderId].items.push({ 'Item Name': row['Item Name'], 'Size': row['Size'], 'Color': row['Color'], 'Custom Name': row['Custom Name'] });
             });
             ordersData = newOrdersData;
         }
 
         async function setupUIForRole(role) {
             currentUserRole = role; localStorage.setItem('userRole', role);
-            DOM.setupSection.style.display = 'none';
             const dataLoaded = await fetchAndProcessData();
-            DOM.appLoader.classList.add('hidden'); // Explicitly hide loader here for robustness
             if (!dataLoaded) return;
+            DOM.appLoader.style.display = 'none';
+            DOM.setupSection.style.display = 'none';
             DOM.appContainer.classList.remove('hidden');
             DOM.roleDisplay.textContent = `Role: ${role.replace('-', ' ')}`;
             DOM.scanSection.classList.remove('hidden');
@@ -189,7 +193,7 @@
             try {
                 html5QrCode = new Html5Qrcode("qr-reader");
                 html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, 
-                    (decodedText) => { DOM.qrScanInput.value = decodedText; verifyOrder(decodedText); }
+                    (decodedText) => { if(!DOM.orderModal.classList.contains('hidden')) return; DOM.qrScanInput.value = decodedText; verifyOrder(decodedText); }
                 ).catch(err => { console.log("Unable to start camera scanner.", err); document.getElementById('qr-reader').style.display = 'none'; });
             } catch (e) { console.error("Error initializing scanner:", e); }
         }
@@ -277,9 +281,9 @@
              setTimeout(() => {
                 DOM.actionLoader.classList.add('hidden');
                 DOM.orderModal.classList.add('hidden');
-                showToast('Delivery status updated! Refreshing data...', 'success');
+                showToast('Update command sent! Refreshing data shortly...', 'success');
                 setTimeout(() => DOM.refreshDataBtn.click(), 2000);
-            }, 3000);
+             }, 500);
         });
 
         function verifyOrder(orderId) {
@@ -291,7 +295,14 @@
 
         function displayOrderInModal(order) {
             const deliveryStatus = order.deliveryStatus || 'Pending';
-            const itemsHtml = '<ul class="list-disc pl-5 space-y-1">' + order.items.map(item => `<li class="text-gray-700">${item.name} - <strong>Size:</strong> ${item.size}, <strong>Color:</strong> ${item.color}</li>`).join('') + '</ul>';
+            const itemsHtml = '<ul class="list-disc pl-5 space-y-1">' + order.items.map(item => {
+                const details = [item['Item Name']];
+                if (item['Size'] && item['Size'].toUpperCase() !== 'N/A') details.push(item['Size']);
+                if (item['Color'] && item['Color'].toUpperCase() !== 'N/A') details.push(item['Color']);
+                if (item['Custom Name'] && item['Custom Name'].toUpperCase() !== 'N/A') details.push(item['Custom Name']);
+                return `<li class="text-gray-700">${details.join(', ')}</li>`;
+            }).join('') + '</ul>';
+
             DOM.modalContent.innerHTML = `<p><strong>Order ID:</strong> ${order.id}</p><p><strong>Name:</strong> ${order.name}</p><p><strong>Status:</strong> <span class="font-semibold ${deliveryStatus === 'Delivered' ? 'text-green-600' : 'text-yellow-600'}">${deliveryStatus}</span></p><h4 class="font-semibold mt-4 mb-2 text-lg">Items:</h4>${itemsHtml}`;
             DOM.markDeliveredBtn.dataset.orderId = order.id;
             DOM.markDeliveredBtn.disabled = deliveryStatus === 'Delivered';
