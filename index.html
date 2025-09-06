@@ -108,7 +108,7 @@
     <script>
         // --- CONFIGURATION ---
         const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTfs7Nl2r2tn00rXXbk_ZMMuX9mMfLxr_nAIRM9DfHivbhvNmJZIOQvgXKEworzW36hb4YxWj25Ddkh/pub?gid=0&single=true&output=csv";
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyTCcqn9sloT3cFRav8iudKX2jjYWsu16cUhYd_4h8XDGSW3XPbWoM1Ko_0H8rL/exec";
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwoXpd2DQmire-W-ZMDmB4LffdfgOtV5IYVbjpF-XjyFQbuHbDjRpO2fY5rnKmeeyiI/exec";
         // -------------------
 
         const DOM = {
@@ -260,13 +260,11 @@
             try {
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    mode: 'no-cors', // Important for simple POST requests to Apps Script
+                    mode: 'no-cors',
                     redirect: 'follow',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Use text/plain for simple POST
                     body: JSON.stringify(payload)
                 });
-                // Since this is a 'no-cors' request, we can't read the response.
-                // We'll assume success if the request doesn't throw an error.
                 return { status: 'success', message: 'Request sent to server.' };
             } catch (error) {
                 console.error('Error triggering Apps Script:', error);
@@ -297,6 +295,7 @@
              
              const result = await triggerAppsScript({ action: 'mark_delivered', orderId: orderId });
              
+             // The loader will be hidden and modal closed after the operation is sent
              DOM.actionLoader.classList.add('hidden');
              history.back();
 
@@ -316,7 +315,9 @@
         }
 
         function displayOrderInModal(order) {
+            // FIX: Explicitly hide the loader every time the modal is shown.
             DOM.actionLoader.classList.add('hidden');
+
             const deliveryStatus = order.deliveryStatus || 'Pending';
             const itemsHtml = '<ul class="list-disc pl-5 space-y-1">' + order.items.map(item => {
                 const details = [item['Item Name']];
