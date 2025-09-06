@@ -135,8 +135,7 @@
         window.onpopstate = function(event) {
             if (!DOM.orderModal.classList.contains('hidden')) {
                 DOM.orderModal.classList.add('hidden');
-                // FIX: Also hide the action loader whenever the modal is closed to reset its state.
-                DOM.actionLoader.classList.add('hidden');
+                DOM.actionLoader.classList.add('hidden'); // Ensure loader is hidden when modal closes
             }
         };
 
@@ -235,115 +234,82 @@
             }
         });
         
-        function displayOrders() {
-            DOM.ordersList.innerHTML = '';
-            if (Object.keys(ordersData).length === 0) {
-                 DOM.ordersList.innerHTML = '<p class="text-gray-500 text-center">No orders found in the sheet.</p>'; return;
-            }
-            Object.values(ordersData).forEach(order => {
-                const deliveryStatus = order.deliveryStatus || 'Pending';
-                const emailStatus = order.emailStatus || 'Unsent';
-                const orderCard = `
-                    <div class="border rounded-lg p-4 shadow-sm bg-gray-50 flex flex-col md:flex-row justify-between items-start md:items-center">
-                        <div><p class="font-bold text-lg">${order.id} - <span class="font-medium">${order.name}</span></p><p class="text-sm text-gray-600">${order.email} | ${order.rollNo}</p></div>
-                        <div class="mt-4 md:mt-0 flex gap-2 items-center flex-wrap">
-                             <span class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full ${deliveryStatus === 'Delivered' ? 'text-green-600 bg-green-200' : 'text-yellow-600 bg-yellow-200'}">${deliveryStatus}</span>
-                             <span class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full ${emailStatus === 'Sent' ? 'text-blue-600 bg-blue-200' : 'text-gray-600 bg-gray-200'}">QR ${emailStatus}</span>
-                        </div></div>`;
-                DOM.ordersList.insertAdjacentHTML('beforeend', orderCard);
-            });
-        }
-        
-        async function triggerAppsScript(payload) {
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("YOUR_GOOGLE_APPS_SCRIPT")) {
-                showToast("Error: Apps Script URL is not configured.", "error");
-                return { status: 'error', message: 'Apps Script URL is not configured.' };
-            }
-            try {
-                const response = await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors',
-                    redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Use text/plain for simple POST
-                    body: JSON.stringify(payload)
-                });
-                return { status: 'success', message: 'Request sent to server.' };
-            } catch (error) {
-                console.error('Error triggering Apps Script:', error);
-                return { status: 'error', message: `Failed to contact server: ${error.message}` };
-            }
-        }
+       function displayOrder() {
+  const orderList = document.getElementById("order-list");
+  orderList.innerHTML = "";
 
-        DOM.sendAllEmailsBtn.addEventListener('click', async () => {
-            DOM.sendAllEmailsBtn.disabled = true;
-            DOM.sendAllEmailsBtn.textContent = 'Sending...';
-            
-            const result = await triggerAppsScript({ action: 'send_emails' });
-            
-            if (result.status === 'success') {
-                showToast('Email command sent! Updates may take a moment. Please refresh data manually.', 'success');
-            } else {
-                showToast(result.message, 'error');
-            }
+  orders.forEach((order, index) => {
+    const orderCard = document.createElement("div");
+    orderCard.className =
+      "bg-white shadow-lg rounded-2xl p-4 flex justify-between items-center";
 
-            DOM.sendAllEmailsBtn.disabled = false;
-            DOM.sendAllEmailsBtn.textContent = 'Send All QR Emails';
-        });
-        
-        DOM.markDeliveredBtn.addEventListener('click', async () => {
-             const orderId = DOM.markDeliveredBtn.dataset.orderId;
-             DOM.actionLoader.classList.remove('hidden');
-             
-             const result = await triggerAppsScript({ action: 'mark_delivered', orderId: orderId });
-             
-             // The loader will be hidden and modal closed after the operation is sent
-             DOM.actionLoader.classList.add('hidden');
-             history.back();
+    const orderDetails = document.createElement("div");
+    orderDetails.innerHTML = `
+      <h3 class="text-lg font-semibold">${order.name}</h3>
+      <p class="text-sm text-gray-600">${order.items.join(", ")}</p>
+      <p class="text-sm font-medium mt-1">Total: ₹${order.total}</p>
+      <p class="text-xs text-gray-500">Order ID: ${order.id}</p>
+    `;
 
-             if (result.status === 'success') {
-                 showToast('Update command sent! Refreshing data shortly...', 'success');
-                 setTimeout(() => DOM.refreshDataBtn.click(), 2000);
-             } else {
-                 showToast(result.message, 'error');
-             }
-        });
+    const actionsDiv = document.createElement("div");
+    actionsDiv.className = "flex gap-2";
 
-        function verifyOrder(orderId) {
-            if (!orderId) { showToast('Please enter or scan an Order ID.', 'error'); return; }
-            const order = ordersData[orderId];
-            if (!order) { showToast(`Order ID "${orderId}" not found.`, 'error'); return; }
-            displayOrderInModal(order);
-        }
+    const qrButton = document.createElement("button");
+    qrButton.className =
+      "px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm";
+    qrButton.innerText = "Scan QR";
+    qrButton.onclick = () => openQRScanner(order.id);
 
-        function displayOrderInModal(order) {
-            // FIX: Explicitly hide the loader every time the modal is shown to prevent it from getting stuck.
-            DOM.actionLoader.classList.add('hidden');
+    const deliverButton = document.createElement("button");
+    deliverButton.className =
+      "px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm";
+    deliverButton.innerText = "Mark as Delivered";
+    deliverButton.onclick = () => markAsDelivered(order.id);
 
-            const deliveryStatus = order.deliveryStatus || 'Pending';
-            const itemsHtml = '<ul class="list-disc pl-5 space-y-1">' + order.items.map(item => {
-                const details = [item['Item Name']];
-                if (item['Size'] && item['Size'].toUpperCase() !== 'N/A') details.push(item['Size']);
-                if (item['Color'] && item['Color'].toUpperCase() !== 'N/A') details.push(item['Color']);
-                if (item['Custom Name'] && item['Custom Name'].toUpperCase() !== 'N/A') details.push(item['Custom Name']);
-                return `<li class="text-gray-700">${details.join(', ')}</li>`;
-            }).join('') + '</ul>';
+    actionsDiv.appendChild(qrButton);
+    actionsDiv.appendChild(deliverButton);
 
-            DOM.modalContent.innerHTML = `<p><strong>Order ID:</strong> ${order.id}</p><p><strong>Name:</strong> ${order.name}</p><p><strong>Status:</strong> <span class="font-semibold ${deliveryStatus === 'Delivered' ? 'text-green-600' : 'text-yellow-600'}">${deliveryStatus}</span></p><h4 class="font-semibold mt-4 mb-2 text-lg">Items:</h4>${itemsHtml}`;
-            DOM.markDeliveredBtn.dataset.orderId = order.id;
-            DOM.markDeliveredBtn.disabled = deliveryStatus === 'Delivered';
-            DOM.markDeliveredBtn.textContent = deliveryStatus === 'Delivered' ? 'Already Delivered' : 'Mark as Delivered';
-            DOM.markDeliveredBtn.className = `font-bold py-2 px-4 rounded-md transition-colors ${deliveryStatus === 'Delivered' ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`;
-            DOM.orderModal.classList.remove('hidden');
-            history.pushState({ modal: 'open' }, `Order ${order.id}`, `#order-${order.id}`);
-        }
+    orderCard.appendChild(orderDetails);
+    orderCard.appendChild(actionsDiv);
 
-        let toastTimeout;
-        function showToast(message, type = 'success') {
-            clearTimeout(toastTimeout); DOM.toast.textContent = message;
-            DOM.toast.className = `toast show ${type}`;
-            toastTimeout = setTimeout(() => { DOM.toast.classList.remove('show'); }, 4000);
-        }
-    </script>
-</body>
-</html>
+    orderList.appendChild(orderCard);
+  });
+}
 
+function openQRScanner(orderId) {
+  const modal = document.getElementById("qr-modal");
+  modal.classList.remove("hidden");
+
+  const scanner = new Html5Qrcode("qr-reader");
+  scanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+    (decodedText) => {
+      if (decodedText === orderId.toString()) {
+        alert("Order matched! You can now mark it as delivered.");
+        scanner.stop();
+        closeQRModal();
+      } else {
+        alert("Scanned QR does not match this order.");
+      }
+    }
+  );
+}
+
+function closeQRModal() {
+  document.getElementById("qr-modal").classList.add("hidden");
+}
+
+function markAsDelivered(orderId) {
+  const loader = document.getElementById("loader-modal");
+  loader.classList.remove("hidden");
+
+  setTimeout(() => {
+    const index = orders.findIndex((o) => o.id === orderId);
+    if (index !== -1) {
+      orders.splice(index, 1);
+      displayOrder();
+    }
+    loader.classList.add("hidden");
+  }, 2000);
+}
