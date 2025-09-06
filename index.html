@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Order Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Library for camera-based QR code scanning -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -37,7 +36,6 @@
 </head>
 <body class="bg-gray-100 text-gray-800">
 
-    <!-- Login Screen -->
     <div id="setup-section" class="container mx-auto p-8 flex items-center justify-center min-h-screen">
         <div class="bg-white p-8 rounded-lg shadow-md text-center w-full max-w-md">
             <h1 class="text-3xl font-bold mb-2">Admin Login</h1>
@@ -49,13 +47,11 @@
         </div>
     </div>
 
-    <!-- Data Loading Spinner -->
     <div id="app-loader" class="hidden min-h-screen">
         <svg class="animate-spin h-10 w-10 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
         <p class="mt-4 text-lg text-gray-600">Loading Order Data...</p>
     </div>
 
-    <!-- Main Application Container -->
     <div id="app-container" class="container mx-auto p-4 md:p-8 hidden">
         <header class="text-center mb-8 flex justify-between items-center">
              <div>
@@ -65,7 +61,6 @@
              <div><button id="reset-btn" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600 transition-colors">Logout</button></div>
         </header>
 
-        <!-- Super Admin: Orders List Section -->
         <div id="orders-section" class="bg-white p-6 rounded-lg shadow-md mb-8 hidden">
              <div class="flex flex-col md:flex-row justify-between md:items-center mb-4">
                  <h2 class="text-2xl font-semibold">Processed Orders</h2>
@@ -77,7 +72,6 @@
              <div id="orders-list" class="space-y-4 max-h-96 overflow-y-auto"></div>
         </div>
 
-        <!-- Scanner Section (for both roles) -->
         <div id="scan-section" class="bg-white p-6 rounded-lg shadow-md hidden">
             <h2 class="text-2xl font-semibold mb-4">Scan QR Code</h2>
               <div id="qr-reader" style="width:100%;"></div>
@@ -89,7 +83,6 @@
         </div>
     </div>
 
-    <!-- Modal for viewing order details and action loader -->
     <div id="order-modal" class="modal-backdrop hidden">
         <div class="modal">
             <div id="action-loader" class="hidden absolute inset-0 bg-white/80 flex items-center justify-center flex-col">
@@ -102,7 +95,6 @@
         </div>
     </div>
 
-    <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
 
     <script>
@@ -112,13 +104,26 @@
         // -------------------
 
         const DOM = {
-            setupSection: document.getElementById('setup-section'), appLoader: document.getElementById('app-loader'), appContainer: document.getElementById('app-container'),
-            passwordInput: document.getElementById('password-input'), loginBtn: document.getElementById('login-btn'), roleDisplay: document.getElementById('role-display'),
-            resetBtn: document.getElementById('reset-btn'), ordersSection: document.getElementById('orders-section'), ordersList: document.getElementById('orders-list'),
-            sendAllEmailsBtn: document.getElementById('send-all-emails-btn'), refreshDataBtn: document.getElementById('refresh-data-btn'), scanSection: document.getElementById('scan-section'),
-            qrScanInput: document.getElementById('qr-scan-input'), scanButton: document.getElementById('scan-button'), orderModal: document.getElementById('order-modal'),
-            closeModal: document.getElementById('close-modal'), modalContent: document.getElementById('modal-content'), markDeliveredBtn: document.getElementById('mark-delivered-button'),
-            toast: document.getElementById('toast'), actionLoader: document.getElementById('action-loader'),
+            setupSection: document.getElementById('setup-section'),
+            appLoader: document.getElementById('app-loader'),
+            appContainer: document.getElementById('app-container'),
+            passwordInput: document.getElementById('password-input'),
+            loginBtn: document.getElementById('login-btn'),
+            roleDisplay: document.getElementById('role-display'),
+            resetBtn: document.getElementById('reset-btn'),
+            ordersSection: document.getElementById('orders-section'),
+            ordersList: document.getElementById('orders-list'),
+            sendAllEmailsBtn: document.getElementById('send-all-emails-btn'),
+            refreshDataBtn: document.getElementById('refresh-data-btn'),
+            scanSection: document.getElementById('scan-section'),
+            qrScanInput: document.getElementById('qr-scan-input'),
+            scanButton: document.getElementById('scan-button'),
+            orderModal: document.getElementById('order-modal'),
+            closeModal: document.getElementById('close-modal'),
+            modalContent: document.getElementById('modal-content'),
+            markDeliveredBtn: document.getElementById('mark-delivered-button'),
+            toast: document.getElementById('toast'),
+            actionLoader: document.getElementById('action-loader'),
         };
 
         let ordersData = {};
@@ -127,11 +132,12 @@
 
         function handleInitialLoad() {
             currentUserRole = localStorage.getItem('userRole');
-            if (currentUserRole) setupUIForRole(currentUserRole); else DOM.setupSection.style.display = 'flex';
+            if (currentUserRole) setupUIForRole(currentUserRole);
+            else DOM.setupSection.style.display = 'flex';
         }
-        
+
         document.addEventListener('DOMContentLoaded', handleInitialLoad);
-        
+
         window.onpopstate = function(event) {
             if (!DOM.orderModal.classList.contains('hidden')) {
                 DOM.orderModal.classList.add('hidden');
@@ -146,42 +152,64 @@
                 DOM.appLoader.style.display = 'flex';
             }
             if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes("YOUR_GOOGLE_SHEET")) {
-                showToast("Error: Google Sheet link is not configured.", "error"); logout(); return false;
+                showToast("Error: Google Sheet link is not configured.", "error");
+                logout();
+                return false;
             }
             try {
                 const response = await fetch(`${GOOGLE_SHEET_CSV_URL}&t=${new Date().getTime()}`);
                 if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
                 const csvText = await response.text();
-                
+
                 const rows = csvText.split(/\r?\n/).map(row => row.split(','));
                 const headers = rows[0].map(h => h.trim());
                 const json = rows.slice(1).map(row => {
-                    let obj = {}; headers.forEach((key, i) => obj[key] = row[i] ? row[i].trim() : ''); return obj;
+                    let obj = {};
+                    headers.forEach((key, i) => obj[key] = row[i] ? row[i].trim() : '');
+                    return obj;
                 });
-                
+
                 processOrderData(json);
                 return true;
             } catch (error) {
-                console.error("Failed to fetch or process sheet data:", error); showToast("Failed to load data from Google Sheet.", "error"); logout(); return false;
+                console.error("Failed to fetch or process sheet data:", error);
+                showToast("Failed to load data from Google Sheet.", "error");
+                logout();
+                return false;
             } finally {
-                 if (showLoader) DOM.appLoader.style.display = 'none';
+                if (showLoader) DOM.appLoader.style.display = 'none';
             }
         }
 
         function processOrderData(data) {
             let newOrdersData = {};
             data.forEach(row => {
-                const orderId = row['Order ID']; if (!orderId) return;
+                const orderId = row['Order ID'];
+                if (!orderId) return;
                 if (!newOrdersData[orderId]) {
-                    newOrdersData[orderId] = { id: orderId, name: row['Name'], email: row['Email'], rollNo: row['Roll No'], items: [], emailStatus: row['EmailStatus'], deliveryStatus: row['DeliveryStatus'] };
+                    newOrdersData[orderId] = {
+                        id: orderId,
+                        name: row['Name'],
+                        email: row['Email'],
+                        rollNo: row['Roll No'],
+                        items: [],
+                        emailStatus: row['EmailStatus'],
+                        deliveryStatus: row['DeliveryStatus']
+                    };
                 }
-                newOrdersData[orderId].items.push({ 'Item Name': row['Item Name'], 'Size': row['Size'], 'Color': row['Color'], 'Custom Name': row['Custom Name'] });
+                newOrdersData[orderId].items.push({
+                    'Item Name': row['Item Name'],
+                    'Size': row['Size'],
+                    'Color': row['Color'],
+                    'Custom Name': row['Custom Name']
+                });
             });
             ordersData = newOrdersData;
         }
 
         async function setupUIForRole(role) {
-            currentUserRole = role; localStorage.setItem('userRole', role);
+            currentUserRole = role;
+            localStorage.setItem('userRole', role);
             const dataLoaded = await fetchAndProcessData();
             if (!dataLoaded) return;
             DOM.appLoader.style.display = 'none';
@@ -190,32 +218,58 @@
             DOM.roleDisplay.textContent = `Role: ${role.replace('-', ' ')}`;
             DOM.scanSection.classList.remove('hidden');
             initializeScanner();
-            if (role === 'super-admin') { DOM.ordersSection.classList.remove('hidden'); displayOrders(); }
+            if (role === 'super-admin') {
+                DOM.ordersSection.classList.remove('hidden');
+                displayOrders();
+            }
         }
-        
+
         function initializeScanner() {
             if (html5QrCode?.isScanning) return;
             try {
                 html5QrCode = new Html5Qrcode("qr-reader");
-                html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, 
-                    (decodedText) => { if(!DOM.orderModal.classList.contains('hidden')) return; DOM.qrScanInput.value = decodedText; verifyOrder(decodedText); }
-                ).catch(err => { console.log("Unable to start camera scanner.", err); document.getElementById('qr-reader').style.display = 'none'; });
-            } catch (e) { console.error("Error initializing scanner:", e); }
+                html5QrCode.start({
+                    facingMode: "environment"
+                }, {
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 }
+                },
+                (decodedText) => {
+                    if (!DOM.orderModal.classList.contains('hidden')) return;
+                    DOM.qrScanInput.value = decodedText;
+                    verifyOrder(decodedText);
+                }
+                ).catch(err => {
+                    console.log("Unable to start camera scanner.", err);
+                    document.getElementById('qr-reader').style.display = 'none';
+                });
+            } catch (e) {
+                console.error("Error initializing scanner:", e);
+            }
         }
 
         function handleLogin() {
             const pass = DOM.passwordInput.value;
             if (pass === 'ADMIN') setupUIForRole('super-admin');
             else if (pass === 'SCANNER') setupUIForRole('scanner-admin');
-            else { showToast('Incorrect password.', 'error'); DOM.passwordInput.value = ''; }
+            else {
+                showToast('Incorrect password.', 'error');
+                DOM.passwordInput.value = '';
+            }
         }
-        
+
         DOM.loginBtn.addEventListener('click', handleLogin);
-        DOM.passwordInput.addEventListener('keypress', (e) => { if (e.key === "Enter") { e.preventDefault(); handleLogin(); } });
+        DOM.passwordInput.addEventListener('keypress', (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                handleLogin();
+            }
+        });
 
         function logout() {
             if (html5QrCode?.isScanning) html5QrCode.stop().catch(err => console.error("Failed to stop scanner", err));
-            localStorage.removeItem('userRole'); location.reload();
+            localStorage.removeItem('userRole');
+            location.reload();
         }
         DOM.resetBtn.addEventListener('click', logout);
         DOM.refreshDataBtn.addEventListener('click', async () => {
@@ -226,90 +280,90 @@
         });
 
         DOM.scanButton.addEventListener('click', () => verifyOrder(DOM.qrScanInput.value.trim()));
-        
+
         DOM.closeModal.addEventListener('click', () => history.back());
         DOM.orderModal.addEventListener('click', (e) => {
             if (e.target === DOM.orderModal) {
                 history.back();
             }
         });
-        
+
         function displayOrder() {
-          const orderList = document.getElementById("order-list");
-          orderList.innerHTML = "";
+            const orderList = document.getElementById("order-list");
+            orderList.innerHTML = "";
 
-          orders.forEach((order, index) => {
-          const orderCard = document.createElement("div");
-            orderCard.className =
-              "bg-white shadow-lg rounded-2xl p-4 flex justify-between items-center";
+            orders.forEach((order, index) => {
+                const orderCard = document.createElement("div");
+                orderCard.className = "bg-white shadow-lg rounded-2xl p-4 flex justify-between items-center";
 
-            const orderDetails = document.createElement("div");
-            orderDetails.innerHTML = `
-              <h3 class="text-lg font-semibold">${order.name}</h3>
-              <p class="text-sm text-gray-600">${order.items.join(", ")}</p>
-              <p class="text-sm font-medium mt-1">Total: ₹${order.total}</p>
-          <p class="text-xs text-gray-500">Order ID: ${order.id}</p>
-        `;
+                const orderDetails = document.createElement("div");
+                orderDetails.innerHTML = `
+                    <h3 class="text-lg font-semibold">${order.name}</h3>
+                    <p class="text-sm text-gray-600">${order.items.join(", ")}</p>
+                    <p class="text-sm font-medium mt-1">Total: ₹${order.total}</p>
+                    <p class="text-xs text-gray-500">Order ID: ${order.id}</p>
+                `;
 
-            const actionsDiv = document.createElement("div");
+                const actionsDiv = document.createElement("div");
                 actionsDiv.className = "flex gap-2";
 
-            const qrButton = document.createElement("button");
-                qrButton.className =
-                  "px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm";
+                const qrButton = document.createElement("button");
+                qrButton.className = "px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm";
                 qrButton.innerText = "Scan QR";
                 qrButton.onclick = () => openQRScanner(order.id);
-            
+
                 const deliverButton = document.createElement("button");
-                deliverButton.className =
-                  "px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm";
+                deliverButton.className = "px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-xl text-sm";
                 deliverButton.innerText = "Mark as Delivered";
                 deliverButton.onclick = () => markAsDelivered(order.id);
-            
+
                 actionsDiv.appendChild(qrButton);
                 actionsDiv.appendChild(deliverButton);
-            
+
                 orderCard.appendChild(orderDetails);
                 orderCard.appendChild(actionsDiv);
-            
+
                 orderList.appendChild(orderCard);
-              });
-            }
-            
-            function openQRScanner(orderId) {
-              const modal = document.getElementById("qr-modal");
-              modal.classList.remove("hidden");
-            
-              const scanner = new Html5Qrcode("qr-reader");
-              scanner.start(
+            });
+        }
+
+        function openQRScanner(orderId) {
+            const modal = document.getElementById("qr-modal");
+            modal.classList.remove("hidden");
+
+            const scanner = new Html5Qrcode("qr-reader");
+            scanner.start(
                 { facingMode: "environment" },
                 { fps: 10, qrbox: 250 },
                 (decodedText) => {
-                  if (decodedText === orderId.toString()) {
-                    alert("Order matched! You can now mark it as delivered.");
-                    scanner.stop();
-                    closeQRModal();
-                  } else {
-                    alert("Scanned QR does not match this order.");
-                  }
+                    if (decodedText === orderId.toString()) {
+                        alert("Order matched! You can now mark it as delivered.");
+                        scanner.stop();
+                        closeQRModal();
+                    } else {
+                        alert("Scanned QR does not match this order.");
+                    }
                 }
-              );
-            }
-            
-            function closeQRModal() {
-              document.getElementById("qr-modal").classList.add("hidden");
-            }
-            
-            function markAsDelivered(orderId) {
-              const loader = document.getElementById("loader-modal");
-              loader.classList.remove("hidden");
-            
-              setTimeout(() => {
+            );
+        }
+
+        function closeQRModal() {
+            document.getElementById("qr-modal").classList.add("hidden");
+        }
+
+        function markAsDelivered(orderId) {
+            const loader = document.getElementById("loader-modal");
+            loader.classList.remove("hidden");
+
+            setTimeout(() => {
                 const index = orders.findIndex((o) => o.id === orderId);
                 if (index !== -1) {
-                  orders.splice(index, 1);
-                  displayOrder();
+                    orders.splice(index, 1);
+                    displayOrder();
                 }
                 loader.classList.add("hidden");
-              }, 2000);
-            }
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
