@@ -18,6 +18,7 @@
         .modal {
             background-color: white; padding: 2rem; border-radius: 0.5rem;
             max-width: 90%; width: 500px; max-height: 90vh; overflow-y: auto;
+            position: relative;
         }
         .toast {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -91,7 +92,7 @@
     <!-- Modal for viewing order details and action loader -->
     <div id="order-modal" class="modal-backdrop hidden">
         <div class="modal">
-            <div id="action-loader" class="hidden absolute inset-0 bg-white/80">
+            <div id="action-loader" class="hidden absolute inset-0 bg-white/80 flex items-center justify-center flex-col">
                 <svg class="animate-spin h-8 w-8 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                 <p class="mt-2 text-gray-600">Updating Status...</p>
             </div>
@@ -139,7 +140,6 @@
                 showToast("Error: Google Sheet link is not configured.", "error"); logout(); return false;
             }
             try {
-                // Add a timestamp to bypass cache
                 const response = await fetch(`${GOOGLE_SHEET_CSV_URL}&t=${new Date().getTime()}`);
                 if (!response.ok) throw new Error(`Network response was not ok: ${response.statusText}`);
                 const csvText = await response.text();
@@ -175,6 +175,7 @@
             currentUserRole = role; localStorage.setItem('userRole', role);
             DOM.setupSection.style.display = 'none';
             const dataLoaded = await fetchAndProcessData();
+            DOM.appLoader.classList.add('hidden'); // Explicitly hide loader here for robustness
             if (!dataLoaded) return;
             DOM.appContainer.classList.remove('hidden');
             DOM.roleDisplay.textContent = `Role: ${role.replace('-', ' ')}`;
@@ -218,7 +219,6 @@
         DOM.scanButton.addEventListener('click', () => verifyOrder(DOM.qrScanInput.value.trim()));
         DOM.closeModal.addEventListener('click', () => DOM.orderModal.classList.add('hidden'));
         DOM.orderModal.addEventListener('click', (e) => { if (e.target === DOM.orderModal) DOM.orderModal.classList.add('hidden'); });
-        DOM.markDeliveredBtn.addEventListener('click', handleMarkAsDelivered);
         
         function displayOrders() {
             DOM.ordersList.innerHTML = '';
@@ -239,60 +239,46 @@
             });
         }
         
-        async function triggerAppsScript(payload) {
-             if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("YOUR_GOOGLE_APPS_SCRIPT")) {
-                showToast("Error: Apps Script URL is not configured.", "error"); return null;
-            }
-            try {
-                // Use POST with a simple text/plain content type to avoid CORS preflight issues
-                const response = await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    body: JSON.stringify(payload),
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    mode: 'no-cors' // Use 'no-cors' for simple POST requests if needed, but a proper deployment should handle CORS.
-                                    // Let's try standard first. If CORS is an issue, this is the first thing to change.
-                });
-
-                // Since App Script redirects for JSON output, we may not be able to read the response directly.
-                // The main goal is to trigger it. We'll rely on the refresh to see changes.
-                // A better approach would be a proper CORS setup in a more advanced backend.
-                // For now, let's assume the request was sent and let the user refresh.
-                 return { status: 'success' }; // Assume success to continue flow.
-
-            } catch (error) {
-                 console.error("Apps Script Fetch Error:", error);
-                 // Fallback: If fetch fails, often due to CORS, open in new tab as a GET request (for simple actions)
-                 // This is a workaround. Proper deployment is key.
-                 showToast('Triggering action... You may see a new tab open.', 'success');
-                 window.open(`${APPS_SCRIPT_URL}?action=${payload.action}&orderId=${payload.orderId || ''}`, '_blank');
-                 return { status: 'success' };
-            }
-        }
-
-        DOM.sendAllEmailsBtn.addEventListener('click', async () => {
+        function triggerAppsScript(action, params = {}) {
             if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("YOUR_GOOGLE_APPS_SCRIPT")) {
-                return showToast("Error: Apps Script URL is not configured.", "error");
+                showToast("Error: Apps Script URL is not configured in the HTML.", "error");
+                return;
             }
-            showToast('Sending request to server... This may take a moment.', 'success');
-            DOM.sendAllEmailsBtn.disabled = true;
-            DOM.sendAllEmailsBtn.textContent = 'Sending...';
-
-            // We will use the redirect workaround which is more reliable for simple web apps.
             const url = new URL(APPS_SCRIPT_URL);
-            url.searchParams.append('action', 'send_emails');
+            url.searchParams.append('action', action);
+            Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
             
-            // Open in a hidden iframe to trigger the script
             const iframe = document.createElement('iframe');
             iframe.style.display = 'none';
             iframe.src = url.toString();
+            iframe.onload = () => { console.log(`Apps Script action '${action}' triggered.`); document.body.removeChild(iframe); };
+            iframe.onerror = () => { console.error(`Error triggering Apps Script action '${action}'.`); document.body.removeChild(iframe); };
             document.body.appendChild(iframe);
+        }
 
+        DOM.sendAllEmailsBtn.addEventListener('click', () => {
+            showToast('Sending command to email server...', 'success');
+            DOM.sendAllEmailsBtn.disabled = true;
+            DOM.sendAllEmailsBtn.textContent = 'Sending...';
+            triggerAppsScript('send_emails');
+            
             setTimeout(() => {
-                document.body.removeChild(iframe);
                 showToast('Email command sent! Refreshing data in 5 seconds...', 'success');
                 setTimeout(() => DOM.refreshDataBtn.click(), 5000);
                 DOM.sendAllEmailsBtn.disabled = false;
                 DOM.sendAllEmailsBtn.textContent = 'Send All QR Emails';
+            }, 3000);
+        });
+        
+        DOM.markDeliveredBtn.addEventListener('click', () => {
+             const orderId = DOM.markDeliveredBtn.dataset.orderId;
+             DOM.actionLoader.classList.remove('hidden');
+             triggerAppsScript('mark_delivered', { orderId: orderId });
+             setTimeout(() => {
+                DOM.actionLoader.classList.add('hidden');
+                DOM.orderModal.classList.add('hidden');
+                showToast('Delivery status updated! Refreshing data...', 'success');
+                setTimeout(() => DOM.refreshDataBtn.click(), 2000);
             }, 3000);
         });
 
@@ -312,31 +298,6 @@
             DOM.markDeliveredBtn.textContent = deliveryStatus === 'Delivered' ? 'Already Delivered' : 'Mark as Delivered';
             DOM.markDeliveredBtn.className = `font-bold py-2 px-4 rounded-md transition-colors ${deliveryStatus === 'Delivered' ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`;
             DOM.orderModal.classList.remove('hidden');
-        }
-
-        async function handleMarkAsDelivered() {
-            const orderId = DOM.markDeliveredBtn.dataset.orderId;
-            if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("YOUR_GOOGLE_APPS_SCRIPT")) {
-                return showToast("Error: Apps Script URL is not configured.", "error");
-            }
-            DOM.actionLoader.classList.remove('hidden');
-            
-            const url = new URL(APPS_SCRIPT_URL);
-            url.searchParams.append('action', 'mark_delivered');
-            url.searchParams.append('orderId', orderId);
-
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = url.toString();
-            document.body.appendChild(iframe);
-
-            setTimeout(() => {
-                document.body.removeChild(iframe);
-                DOM.actionLoader.classList.add('hidden');
-                DOM.orderModal.classList.add('hidden');
-                showToast('Delivery status updated! Refreshing data...', 'success');
-                setTimeout(() => DOM.refreshDataBtn.click(), 2000);
-            }, 3000);
         }
 
         let toastTimeout;
