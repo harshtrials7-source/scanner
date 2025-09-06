@@ -183,15 +183,50 @@
         let dataDocRef;
         let html5QrCode;
 
-        // --- FIREBASE SETUP ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-order-app';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const app = initializeApp(firebaseConfig);
-        db = getFirestore(app);
-        const auth = getAuth(app);
-        dataDocRef = doc(db, `/artifacts/${appId}/public/data`, "ordersSheet");
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // --- FIREBASE SETUP ---
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-order-app';
+                const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+                
+                if (firebaseConfigStr === '{}') {
+                    showToast("CRITICAL ERROR: Firebase config not found.", "error");
+                    console.error("Firebase configuration is missing. The app cannot start.");
+                    // Disable buttons to prevent user interaction
+                    superAdminBtn.disabled = true;
+                    scannerAdminBtn.disabled = true;
+                    superAdminBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    scannerAdminBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                    return;
+                }
+
+                const firebaseConfig = JSON.parse(firebaseConfigStr);
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                const auth = getAuth(app);
+                dataDocRef = doc(db, `/artifacts/${appId}/public/data`, "ordersSheet");
         
-        async function initializeAuth() {
+                await initializeAuth(auth);
+                currentUserRole = localStorage.getItem('userRole');
+                if (currentUserRole) {
+                    setupUIForRole(currentUserRole);
+                } else {
+                    roleSelectionSection.classList.remove('hidden');
+                }
+
+            } catch (error) {
+                console.error("Initialization failed:", error);
+                showToast("App failed to start. Check console for errors.", "error");
+                 // Disable buttons to prevent user interaction
+                superAdminBtn.disabled = true;
+                scannerAdminBtn.disabled = true;
+                superAdminBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                scannerAdminBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        });
+        
+        async function initializeAuth(auth) {
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
@@ -201,19 +236,9 @@
             } catch (error) {
                 console.error("Authentication failed:", error);
                 showToast('Authentication failed. Please refresh.', 'error');
+                throw error; // Re-throw to be caught by the main handler
             }
         }
-
-        // --- INITIALIZATION ---
-        document.addEventListener('DOMContentLoaded', async () => {
-            await initializeAuth();
-            currentUserRole = localStorage.getItem('userRole');
-            if (currentUserRole) {
-                setupUIForRole(currentUserRole);
-            } else {
-                roleSelectionSection.classList.remove('hidden');
-            }
-        });
         
         function setupUIForRole(role) {
             currentUserRole = role;
@@ -441,4 +466,5 @@
     </script>
 </body>
 </html>
+
 
