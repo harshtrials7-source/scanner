@@ -59,8 +59,8 @@
     <div id="app-container" class="container mx-auto p-4 md:p-8 hidden">
         <header class="text-center mb-8 flex justify-between items-center">
              <div>
-                <h1 class="text-2xl md:text-4xl font-bold text-gray-900">Order Dashboard</h1>
-                <p id="role-display" class="text-gray-600 mt-1"></p>
+                 <h1 class="text-2xl md:text-4xl font-bold text-gray-900">Order Dashboard</h1>
+                 <p id="role-display" class="text-gray-600 mt-1"></p>
              </div>
              <div><button id="reset-btn" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600 transition-colors">Logout</button></div>
         </header>
@@ -68,20 +68,20 @@
         <!-- Super Admin: Orders List Section -->
         <div id="orders-section" class="bg-white p-6 rounded-lg shadow-md mb-8 hidden">
              <div class="flex flex-col md:flex-row justify-between md:items-center mb-4">
-                <h2 class="text-2xl font-semibold">Processed Orders</h2>
-                <div class="flex items-center gap-4">
-                    <button id="refresh-data-btn" class="mt-4 md:mt-0 bg-gray-500 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-600 transition-colors">Refresh Data</button>
-                    <button id="send-all-emails-btn" class="mt-4 md:mt-0 bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 transition-colors">Send All QR Emails</button>
-                </div>
+                 <h2 class="text-2xl font-semibold">Processed Orders</h2>
+                 <div class="flex items-center gap-4">
+                     <button id="refresh-data-btn" class="mt-4 md:mt-0 bg-gray-500 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-600 transition-colors">Refresh Data</button>
+                     <button id="send-all-emails-btn" class="mt-4 md:mt-0 bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 transition-colors">Send All QR Emails</button>
+                 </div>
             </div>
-            <div id="orders-list" class="space-y-4 max-h-96 overflow-y-auto"></div>
+             <div id="orders-list" class="space-y-4 max-h-96 overflow-y-auto"></div>
         </div>
 
         <!-- Scanner Section (for both roles) -->
         <div id="scan-section" class="bg-white p-6 rounded-lg shadow-md hidden">
             <h2 class="text-2xl font-semibold mb-4">Scan QR Code</h2>
-             <div id="qr-reader" style="width:100%;"></div>
-             <p class="text-center text-gray-500 my-2">OR</p>
+              <div id="qr-reader" style="width:100%;"></div>
+              <p class="text-center text-gray-500 my-2">OR</p>
             <div class="flex flex-col sm:flex-row gap-2">
                 <input type="text" id="qr-scan-input" class="flex-grow p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Enter Order ID manually">
                 <button id="scan-button" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors">Verify Order</button>
@@ -135,6 +135,8 @@
         window.onpopstate = function(event) {
             if (!DOM.orderModal.classList.contains('hidden')) {
                 DOM.orderModal.classList.add('hidden');
+                // FIX: Also hide the action loader whenever the modal is closed to reset its state.
+                DOM.actionLoader.classList.add('hidden');
             }
         };
 
@@ -300,10 +302,10 @@
              history.back();
 
              if (result.status === 'success') {
-                showToast('Update command sent! Refreshing data shortly...', 'success');
-                setTimeout(() => DOM.refreshDataBtn.click(), 2000);
+                 showToast('Update command sent! Refreshing data shortly...', 'success');
+                 setTimeout(() => DOM.refreshDataBtn.click(), 2000);
              } else {
-                showToast(result.message, 'error');
+                 showToast(result.message, 'error');
              }
         });
 
@@ -315,9 +317,6 @@
         }
 
         function displayOrderInModal(order) {
-            // FIX: Explicitly hide the loader every time the modal is shown.
-            DOM.actionLoader.classList.add('hidden');
-
             const deliveryStatus = order.deliveryStatus || 'Pending';
             const itemsHtml = '<ul class="list-disc pl-5 space-y-1">' + order.items.map(item => {
                 const details = [item['Item Name']];
@@ -345,4 +344,3 @@
     </script>
 </body>
 </html>
-
