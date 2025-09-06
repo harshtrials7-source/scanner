@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Order Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Library to read Excel files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Library to generate QR codes -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Library for camera-based QR code scanning -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .modal {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            max-width: 90%;
+            width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: white;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .toast.show { opacity: 1; }
+        .toast.success { background-color: #28a745; }
+        .toast.error { background-color: #dc3545; }
+        #qr-reader {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Role Selection Screen -->
+    <div id="role-selection-section" class="container mx-auto p-8 flex items-center justify-center min-h-screen">
+        <div class="bg-white p-8 rounded-lg shadow-md text-center w-full max-w-md">
+            <h1 class="text-3xl font-bold mb-6">Select Your Role</h1>
+            <div class="space-y-4">
+                <button id="super-admin-btn" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-md hover:bg-indigo-700 transition-colors text-lg">
+                    Super Admin
+                </button>
+                <button id="scanner-admin-btn" class="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded-md hover:bg-gray-700 transition-colors text-lg">
+                    Scanner Admin
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application Container -->
+    <div id="app-container" class="container mx-auto p-4 md:p-8 hidden">
+        <header class="text-center mb-8 flex justify-between items-center">
+             <div>
+                <h1 class="text-2xl md:text-4xl font-bold text-gray-900">Order Dashboard</h1>
+                <p id="role-display" class="text-gray-600 mt-1"></p>
+             </div>
+             <button id="reset-btn" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600 transition-colors">Change Role</button>
+        </header>
+
+        <!-- Super Admin: Upload Section -->
+        <div id="upload-section" class="bg-white p-6 rounded-lg shadow-md mb-8 hidden">
+            <h2 class="text-2xl font-semibold mb-4">1. Upload Order Sheet</h2>
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <input type="file" id="file-upload" class="hidden" accept=".xlsx, .xls, .csv">
+                <label for="file-upload" class="cursor-pointer bg-indigo-600 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors">
+                    Select & Upload to Cloud
+                </label>
+                <p id="file-name" class="mt-4 text-gray-500">No file selected.</p>
+            </div>
+            <p class="text-xs text-gray-500 mt-4 text-center">Uploading a new sheet will overwrite any existing data.</p>
+        </div>
+
+        <!-- Super Admin: Orders List Section -->
+        <div id="orders-section" class="bg-white p-6 rounded-lg shadow-md mb-8 hidden">
+             <div class="flex flex-col md:flex-row justify-between md:items-center mb-4">
+                <h2 class="text-2xl font-semibold">Processed Orders</h2>
+                <button id="send-all-emails" class="mt-4 md:mt-0 bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 transition-colors">
+                    Send All QR Emails
+                </button>
+            </div>
+            <div id="orders-list" class="space-y-4 max-h-96 overflow-y-auto">
+                <!-- Orders will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <!-- Scanner Section (for both roles) -->
+        <div id="scan-section" class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-semibold mb-4">Scan QR Code</h2>
+             <div id="qr-reader" style="width:100%;"></div>
+             <p class="text-center text-gray-500 my-2">OR</p>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input type="text" id="qr-scan-input" class="flex-grow p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="Enter Order ID manually">
+                <button id="scan-button" class="bg-indigo-600 text-white font-bold py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors">
+                    Verify Order
+                </button>
+            </div>
+             <div id="loading-message" class="text-center p-4 text-gray-600 hidden">
+                <p>Waiting for Super Admin to upload order data...</p>
+             </div>
+        </div>
+    </div>
+
+    <!-- Modal for viewing order details -->
+    <div id="order-modal" class="modal-backdrop hidden">
+        <div class="modal">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-2xl font-semibold">Order Details</h3>
+                <button id="close-modal" class="text-2xl font-bold">&times;</button>
+            </div>
+            <div id="modal-content"></div>
+            <div class="mt-6 flex justify-end gap-3">
+                <button id="mark-delivered-button" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition-colors">
+                    Mark as Delivered
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // DOM Elements
+        const roleSelectionSection = document.getElementById('role-selection-section');
+        const appContainer = document.getElementById('app-container');
+        const superAdminBtn = document.getElementById('super-admin-btn');
+        const scannerAdminBtn = document.getElementById('scanner-admin-btn');
+        const roleDisplay = document.getElementById('role-display');
+        const resetBtn = document.getElementById('reset-btn');
+        const uploadSection = document.getElementById('upload-section');
+        const fileUpload = document.getElementById('file-upload');
+        const fileNameDisplay = document.getElementById('file-name');
+        const ordersSection = document.getElementById('orders-section');
+        const ordersList = document.getElementById('orders-list');
+        const sendAllEmailsBtn = document.getElementById('send-all-emails');
+        const scanSection = document.getElementById('scan-section');
+        const qrScanInput = document.getElementById('qr-scan-input');
+        const scanButton = document.getElementById('scan-button');
+        const loadingMessage = document.getElementById('loading-message');
+        const orderModal = document.getElementById('order-modal');
+        const closeModal = document.getElementById('close-modal');
+        const modalContent = document.getElementById('modal-content');
+        const markDeliveredBtn = document.getElementById('mark-delivered-button');
+        const toast = document.getElementById('toast');
+
+        // App State
+        let ordersData = {};
+        let currentUserRole = null;
+        let db;
+        let dataDocRef;
+        let html5QrCode;
+
+        // --- FIREBASE SETUP ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-order-app';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const app = initializeApp(firebaseConfig);
+        db = getFirestore(app);
+        const auth = getAuth(app);
+        dataDocRef = doc(db, `/artifacts/${appId}/public/data`, "ordersSheet");
+        
+        async function initializeAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Authentication failed:", error);
+                showToast('Authentication failed. Please refresh.', 'error');
+            }
+        }
+
+        // --- INITIALIZATION ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initializeAuth();
+            currentUserRole = localStorage.getItem('userRole');
+            if (currentUserRole) {
+                setupUIForRole(currentUserRole);
+            } else {
+                roleSelectionSection.classList.remove('hidden');
+            }
+        });
+        
+        function setupUIForRole(role) {
+            currentUserRole = role;
+            localStorage.setItem('userRole', role);
+            roleDisplay.textContent = `Role: ${role.replace('-', ' ')}`;
+            
+            roleSelectionSection.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            
+            // Listen for data changes from Firestore
+            onSnapshot(dataDocRef, (docSnap) => {
+                if (docSnap.exists() && docSnap.data().sheetData) {
+                    ordersData = JSON.parse(docSnap.data().sheetData);
+                    loadingMessage.classList.add('hidden');
+                    scanSection.classList.remove('hidden');
+                    if (currentUserRole === 'super-admin') {
+                        uploadSection.classList.remove('hidden'); // Always show upload for super admin
+                        ordersSection.classList.remove('hidden');
+                    }
+                    displayOrders();
+                    initializeScanner();
+                } else {
+                    ordersData = {};
+                    displayOrders();
+                    if (currentUserRole === 'super-admin') {
+                        uploadSection.classList.remove('hidden');
+                        ordersSection.classList.add('hidden');
+                        scanSection.classList.add('hidden');
+                    } else {
+                        uploadSection.classList.add('hidden');
+                        ordersSection.classList.add('hidden');
+                        scanSection.classList.remove('hidden');
+                        loadingMessage.classList.remove('hidden');
+                    }
+                }
+            }, (error) => {
+                console.error("Error listening to document: ", error);
+                showToast("Error connecting to database.", "error");
+            });
+        }
+        
+        function initializeScanner() {
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("qr-reader");
+                const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+                html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+                    .catch(err => {
+                        console.log("Unable to start scanning.", err);
+                        // Hide the qr-reader if camera is not available
+                        document.getElementById('qr-reader').style.display = 'none';
+                    });
+            }
+        }
+
+        const onScanSuccess = (decodedText, decodedResult) => {
+            qrScanInput.value = decodedText;
+            verifyOrder(decodedText);
+        };
+        
+        // --- EVENT LISTENERS ---
+        superAdminBtn.addEventListener('click', () => setupUIForRole('super-admin'));
+        scannerAdminBtn.addEventListener('click', () => setupUIForRole('scanner-admin'));
+
+        resetBtn.addEventListener('click', () => {
+            localStorage.removeItem('userRole');
+            location.reload();
+        });
+
+        fileUpload.addEventListener('change', handleFileUpload);
+        scanButton.addEventListener('click', () => verifyOrder(qrScanInput.value.trim()));
+        sendAllEmailsBtn.addEventListener('click', handleSendAllEmails);
+        closeModal.addEventListener('click', () => orderModal.classList.add('hidden'));
+        orderModal.addEventListener('click', (e) => { if (e.target === orderModal) orderModal.classList.add('hidden'); });
+        markDeliveredBtn.addEventListener('click', handleMarkAsDelivered);
+
+
+        // --- CORE FUNCTIONS ---
+        async function updateFirestoreData() {
+            try {
+                await setDoc(dataDocRef, { sheetData: JSON.stringify(ordersData) }, { merge: true });
+            } catch(error) {
+                console.error("Error updating Firestore: ", error);
+                showToast('Failed to save changes to cloud.', 'error');
+            }
+        }
+        
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            fileNameDisplay.textContent = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(worksheet);
+                processOrderData(json);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function processOrderData(data) {
+            let newOrdersData = {};
+            data.forEach(row => {
+                const orderId = row['Order ID'];
+                if (!orderId) return;
+                if (!newOrdersData[orderId]) {
+                    newOrdersData[orderId] = {
+                        id: orderId, name: row['Name'], email: row['Email'], rollNo: row['Roll No'],
+                        items: [], status: 'Pending', emailSent: false, deliveryEmailSent: false
+                    };
+                }
+                newOrdersData[orderId].items.push({
+                    name: row['Item Name'], size: row['Size'], color: row['Color'], customName: row['Custom Name']
+                });
+            });
+            ordersData = newOrdersData;
+            await updateFirestoreData();
+            showToast('File processed and saved to cloud!', 'success');
+        }
+
+        function displayOrders() {
+            ordersList.innerHTML = '';
+            if (Object.keys(ordersData).length === 0) {
+                 ordersList.innerHTML = '<p class="text-gray-500 text-center">No orders loaded.</p>';
+                 return;
+            }
+            Object.values(ordersData).forEach(order => {
+                const orderCard = `
+                    <div id="order-${order.id}" class="border rounded-lg p-4 shadow-sm bg-gray-50 flex flex-col md:flex-row justify-between items-start md:items-center">
+                        <div>
+                            <p class="font-bold text-lg">${order.id} - <span class="font-medium">${order.name}</span></p>
+                            <p class="text-sm text-gray-600">${order.email} | ${order.rollNo}</p>
+                        </div>
+                        <div class="mt-4 md:mt-0 flex gap-2 items-center">
+                             <span id="status-${order.id}" class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full ${order.status === 'Delivered' ? 'text-green-600 bg-green-200' : 'text-yellow-600 bg-yellow-200'}">${order.status}</span>
+                             <span id="email-status-${order.id}" class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full ${order.emailSent ? 'text-blue-600 bg-blue-200' : 'text-gray-600 bg-gray-200'}">QR ${order.emailSent ? 'Sent' : 'Unsent'}</span>
+                            <button onclick="window.app.sendQrEmail('${order.id}')" class="bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded-md hover:bg-blue-600 transition-colors">Send QR</button>
+                        </div>
+                    </div>`;
+                ordersList.insertAdjacentHTML('beforeend', orderCard);
+            });
+        }
+        
+        async function sendQrEmail(orderId, silent = false) {
+            const order = ordersData[orderId];
+            if (order.emailSent && !silent) {
+                showToast(`Email for ${orderId} has already been sent.`, 'error');
+                return;
+            }
+
+            const qrCodeContainer = document.createElement('div');
+            new QRCode(qrCodeContainer, { text: order.id, width: 128, height: 128 });
+            await new Promise(r => setTimeout(r, 200)); 
+
+            let itemsHtml = order.items.map(item => `<li>${item.name} (Size: ${item.size}, Color: ${item.color})</li>`).join('');
+            const subject = `Your Order Confirmation & QR Code: ${order.id}`;
+            const body = `Dear ${order.name},\n\nThank you for your order! Please present this QR code at collection.\n\nOrder ID: ${order.id}\nItems:\n${itemsHtml}\n\nThank you,\nTeam Merch`.replace(/\n/g, '%0A');
+
+            window.open(`mailto:${order.email}?subject=${subject}&body=${body}`, '_blank');
+            
+            order.emailSent = true;
+            await updateFirestoreData();
+            if(!silent) showToast(`Generated email for ${orderId}.`, 'success');
+        }
+        window.app = { sendQrEmail }; // Make it globally accessible for onclick
+
+        async function handleSendAllEmails() {
+            showToast('Preparing all unsent emails...', 'success');
+            for (const orderId in ordersData) {
+                if (!ordersData[orderId].emailSent) {
+                    await sendQrEmail(orderId, true);
+                    await new Promise(r => setTimeout(r, 300));
+                }
+            }
+            showToast('All unsent emails prepared.', 'success');
+        }
+
+        function verifyOrder(orderId) {
+            if (!orderId) { showToast('Please enter or scan an Order ID.', 'error'); return; }
+            const order = ordersData[orderId];
+            if (!order) { showToast(`Order ID "${orderId}" not found.`, 'error'); return; }
+            displayOrderInModal(order);
+        }
+
+        function displayOrderInModal(order) {
+            let itemsHtml = '<ul class="list-disc pl-5 space-y-1">' + order.items.map(item => `<li class="text-gray-700">${item.name} - <strong>Size:</strong> ${item.size}, <strong>Color:</strong> ${item.color}</li>`).join('') + '</ul>';
+            modalContent.innerHTML = `<p><strong>Order ID:</strong> ${order.id}</p><p><strong>Name:</strong> ${order.name}</p><p><strong>Status:</strong> <span class="font-semibold ${order.status === 'Delivered' ? 'text-green-600' : 'text-yellow-600'}">${order.status}</span></p><h4 class="font-semibold mt-4 mb-2 text-lg">Items:</h4>${itemsHtml}`;
+            markDeliveredBtn.dataset.orderId = order.id;
+            markDeliveredBtn.disabled = order.status === 'Delivered';
+            markDeliveredBtn.textContent = order.status === 'Delivered' ? 'Already Delivered' : 'Mark as Delivered';
+            markDeliveredBtn.className = `font-bold py-2 px-4 rounded-md transition-colors ${order.status === 'Delivered' ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`;
+            orderModal.classList.remove('hidden');
+        }
+
+        async function handleMarkAsDelivered() {
+            const orderId = markDeliveredBtn.dataset.orderId;
+            const order = ordersData[orderId];
+            if (order.status === 'Delivered') return;
+
+            order.status = 'Delivered';
+            await updateFirestoreData();
+            sendDeliveryEmail(order);
+            showToast(`Order ${orderId} marked as delivered.`, 'success');
+            orderModal.classList.add('hidden');
+        }
+
+        async function sendDeliveryEmail(order) {
+             if (order.deliveryEmailSent) return;
+             const subject = `Your Order Has Been Delivered: ${order.id}`;
+             const body = `Dear ${order.name},\n\nThis is confirmation that your order ${order.id} has been delivered.\n\nThank you!`.replace(/\n/g, '%0A');
+             window.open(`mailto:${order.email}?subject=${subject}&body=${body}`, '_blank');
+             order.deliveryEmailSent = true;
+             await updateFirestoreData();
+        }
+
+        let toastTimeout;
+        function showToast(message, type = 'success') {
+            clearTimeout(toastTimeout);
+            toast.textContent = message;
+            toast.className = `toast show ${type}`;
+            toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+    </script>
+</body>
+</html>
+
