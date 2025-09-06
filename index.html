@@ -64,14 +64,12 @@
     <!-- Role Selection Screen -->
     <div id="role-selection-section" class="container mx-auto p-8 flex items-center justify-center min-h-screen">
         <div class="bg-white p-8 rounded-lg shadow-md text-center w-full max-w-md">
-            <h1 class="text-3xl font-bold mb-2">Select Your Role</h1>
+            <h1 class="text-3xl font-bold mb-2">Admin Login</h1>
             <p id="loading-config-msg" class="text-gray-500 mb-6">Initializing...</p>
             <div class="space-y-4">
-                <button id="super-admin-btn" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-md hover:bg-indigo-700 transition-colors text-lg" disabled>
-                    Super Admin
-                </button>
-                <button id="scanner-admin-btn" class="w-full bg-gray-600 text-white font-bold py-3 px-4 rounded-md hover:bg-gray-700 transition-colors text-lg" disabled>
-                    Scanner Admin
+                <input type="password" id="password-input" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:outline-none text-center text-lg" placeholder="Enter Password" disabled>
+                <button id="login-btn" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-md hover:bg-indigo-700 transition-colors text-lg" disabled>
+                    Login
                 </button>
             </div>
         </div>
@@ -158,8 +156,8 @@
         const roleSelectionSection = document.getElementById('role-selection-section');
         const loadingConfigMsg = document.getElementById('loading-config-msg');
         const appContainer = document.getElementById('app-container');
-        const superAdminBtn = document.getElementById('super-admin-btn');
-        const scannerAdminBtn = document.getElementById('scanner-admin-btn');
+        const passwordInput = document.getElementById('password-input');
+        const loginBtn = document.getElementById('login-btn');
         const roleDisplay = document.getElementById('role-display');
         const resetBtn = document.getElementById('reset-btn');
         const uploadSection = document.getElementById('upload-section');
@@ -190,9 +188,6 @@
             let attempts = 0;
             const maxAttempts = 50; // Wait for max 5 seconds (50 * 100ms)
 
-            superAdminBtn.classList.add('opacity-50', 'cursor-not-allowed');
-            scannerAdminBtn.classList.add('opacity-50', 'cursor-not-allowed');
-
             const interval = setInterval(() => {
                 attempts++;
                 // Check for the global variable injected by the environment
@@ -214,17 +209,16 @@
         async function initializeAppLogic() {
             try {
                 loadingConfigMsg.textContent = "Configuration loaded. Ready.";
-                superAdminBtn.disabled = false;
-                scannerAdminBtn.disabled = false;
-                superAdminBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-                scannerAdminBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                passwordInput.disabled = false;
+                loginBtn.disabled = false;
+                loginBtn.classList.remove('opacity-50', 'cursor-not-allowed');
 
                 const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-order-app';
                 const firebaseConfig = JSON.parse(window.__firebase_config);
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 const auth = getAuth(app);
-                dataDocRef = doc(db, `/artifacts/${appId}/public/data`, "ordersSheet");
+                dataDocRef = doc(db, `/artifacts/${appId}/public/data/sheetData`, "ordersSheet");
         
                 await initializeAuth(auth);
 
@@ -239,6 +233,9 @@
                 showToast("App failed to start. Check console for errors.", "error");
                 loadingConfigMsg.textContent = "An error occurred during startup.";
                 loadingConfigMsg.classList.add('text-red-500');
+                passwordInput.disabled = true;
+                loginBtn.disabled = true;
+                loginBtn.classList.add('opacity-50', 'cursor-not-allowed');
             }
         }
         
@@ -321,8 +318,25 @@
         };
         
         // --- EVENT LISTENERS ---
-        superAdminBtn.addEventListener('click', () => setupUIForRole('super-admin'));
-        scannerAdminBtn.addEventListener('click', () => setupUIForRole('scanner-admin'));
+        function handleLogin() {
+            const password = passwordInput.value;
+            if (password === 'ADMIN') {
+                setupUIForRole('super-admin');
+            } else if (password === 'SCANNER') {
+                setupUIForRole('scanner-admin');
+            } else {
+                showToast('Incorrect password.', 'error');
+                passwordInput.value = '';
+            }
+        }
+        
+        loginBtn.addEventListener('click', handleLogin);
+        passwordInput.addEventListener('keypress', function(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                handleLogin();
+            }
+        });
 
         resetBtn.addEventListener('click', () => {
             if (html5QrCode && html5QrCode.isScanning) {
