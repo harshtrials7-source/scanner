@@ -281,8 +281,7 @@
             const result = await triggerAppsScript({ action: 'send_emails' });
             
             if (result.status === 'success') {
-                showToast('Email command sent! Refreshing data in 5 seconds...', 'success');
-                setTimeout(() => DOM.refreshDataBtn.click(), 5000);
+                showToast('Email command sent! Updates may take a moment. Please refresh data manually.', 'success');
             } else {
                 showToast(result.message, 'error');
             }
@@ -317,6 +316,9 @@
         }
 
         function displayOrderInModal(order) {
+            // FIX: Explicitly hide the loader every time the modal is shown to prevent it from getting stuck.
+            DOM.actionLoader.classList.add('hidden');
+
             const deliveryStatus = order.deliveryStatus || 'Pending';
             const itemsHtml = '<ul class="list-disc pl-5 space-y-1">' + order.items.map(item => {
                 const details = [item['Item Name']];
@@ -344,3 +346,4 @@
     </script>
 </body>
 </html>
+
