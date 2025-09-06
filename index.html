@@ -107,10 +107,8 @@
 
     <script>
         // --- CONFIGURATION ---
-        // PASTE YOUR GOOGLE SHEET "PUBLISH TO WEB" CSV LINK HERE
         const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTfs7Nl2r2tn00rXXbk_ZMMuX9mMfLxr_nAIRM9DfHivbhvNmJZIOQvgXKEworzW36hb4YxWj25Ddkh/pub?gid=0&single=true&output=csv";
-        // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyTCcqn9sloT3cFRav8iudKX2jjYWsu16cUhYd_4h8XDGSW3XPbWoM1Ko_0H8rL/exec";
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwoXpd2DQmire-W-ZMDmB4LffdfgOtV5IYVbjpF-XjyFQbuHbDjRpO2fY5rnKmeeyiI/exec";
         // -------------------
 
         const DOM = {
@@ -135,7 +133,6 @@
         document.addEventListener('DOMContentLoaded', handleInitialLoad);
         
         window.onpopstate = function(event) {
-            // If the modal is open, this event should close it.
             if (!DOM.orderModal.classList.contains('hidden')) {
                 DOM.orderModal.classList.add('hidden');
             }
@@ -255,48 +252,60 @@
             });
         }
         
-        function triggerAppsScript(action, params = {}) {
+        async function triggerAppsScript(payload) {
             if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("YOUR_GOOGLE_APPS_SCRIPT")) {
-                showToast("Error: Apps Script URL is not configured in the HTML.", "error");
-                return;
+                showToast("Error: Apps Script URL is not configured.", "error");
+                return { status: 'error', message: 'Apps Script URL is not configured.' };
             }
-            const url = new URL(APPS_SCRIPT_URL);
-            url.searchParams.append('action', action);
-            Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
-            
-            const iframe = document.createElement('iframe');
-            iframe.style.display = 'none';
-            iframe.src = url.toString();
-            iframe.onload = () => { console.log(`Apps Script action '${action}' triggered.`); document.body.removeChild(iframe); };
-            iframe.onerror = () => { console.error(`Error triggering Apps Script action '${action}'.`); document.body.removeChild(iframe); };
-            document.body.appendChild(iframe);
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // Important for simple POST requests to Apps Script
+                    redirect: 'follow',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                // Since this is a 'no-cors' request, we can't read the response.
+                // We'll assume success if the request doesn't throw an error.
+                return { status: 'success', message: 'Request sent to server.' };
+            } catch (error) {
+                console.error('Error triggering Apps Script:', error);
+                return { status: 'error', message: `Failed to contact server: ${error.message}` };
+            }
         }
 
-        DOM.sendAllEmailsBtn.addEventListener('click', () => {
-            showToast('Sending command to email server...', 'success');
+        DOM.sendAllEmailsBtn.addEventListener('click', async () => {
             DOM.sendAllEmailsBtn.disabled = true;
             DOM.sendAllEmailsBtn.textContent = 'Sending...';
-            triggerAppsScript('send_emails');
             
-            setTimeout(() => {
+            const result = await triggerAppsScript({ action: 'send_emails' });
+            
+            if (result.status === 'success') {
                 showToast('Email command sent! Refreshing data in 5 seconds...', 'success');
                 setTimeout(() => DOM.refreshDataBtn.click(), 5000);
-                DOM.sendAllEmailsBtn.disabled = false;
-                DOM.sendAllEmailsBtn.textContent = 'Send All QR Emails';
-            }, 3000);
+            } else {
+                showToast(result.message, 'error');
+            }
+
+            DOM.sendAllEmailsBtn.disabled = false;
+            DOM.sendAllEmailsBtn.textContent = 'Send All QR Emails';
         });
         
-        DOM.markDeliveredBtn.addEventListener('click', () => {
+        DOM.markDeliveredBtn.addEventListener('click', async () => {
              const orderId = DOM.markDeliveredBtn.dataset.orderId;
              DOM.actionLoader.classList.remove('hidden');
-             triggerAppsScript('mark_delivered', { orderId: orderId });
-             setTimeout(() => {
-                DOM.actionLoader.classList.add('hidden');
-                // Use history.back() to close the modal and trigger the popstate event
-                history.back();
+             
+             const result = await triggerAppsScript({ action: 'mark_delivered', orderId: orderId });
+             
+             DOM.actionLoader.classList.add('hidden');
+             history.back();
+
+             if (result.status === 'success') {
                 showToast('Update command sent! Refreshing data shortly...', 'success');
                 setTimeout(() => DOM.refreshDataBtn.click(), 2000);
-             }, 500);
+             } else {
+                showToast(result.message, 'error');
+             }
         });
 
         function verifyOrder(orderId) {
@@ -307,9 +316,7 @@
         }
 
         function displayOrderInModal(order) {
-            // Force hide the loader every time the modal opens
             DOM.actionLoader.classList.add('hidden');
-
             const deliveryStatus = order.deliveryStatus || 'Pending';
             const itemsHtml = '<ul class="list-disc pl-5 space-y-1">' + order.items.map(item => {
                 const details = [item['Item Name']];
@@ -325,8 +332,6 @@
             DOM.markDeliveredBtn.textContent = deliveryStatus === 'Delivered' ? 'Already Delivered' : 'Mark as Delivered';
             DOM.markDeliveredBtn.className = `font-bold py-2 px-4 rounded-md transition-colors ${deliveryStatus === 'Delivered' ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`;
             DOM.orderModal.classList.remove('hidden');
-            
-            // Add a state to the browser's history for the back button
             history.pushState({ modal: 'open' }, `Order ${order.id}`, `#order-${order.id}`);
         }
 
