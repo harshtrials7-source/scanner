@@ -173,7 +173,16 @@
             data.forEach(row => {
                 const orderId = row['Order ID']; if (!orderId) return;
                 if (!newOrdersData[orderId]) {
-                    newOrdersData[orderId] = { id: orderId, name: row['Name'], email: row['Email'], rollNo: row['Roll No'], items: [], emailStatus: row['EmailStatus'], deliveryStatus: row['DeliveryStatus'] };
+                    newOrdersData[orderId] = { 
+                        id: orderId, 
+                        name: row['Name'], 
+                        email: row['Email'], 
+                        rollNo: row['Roll No'], 
+                        batchYear: row['Batch Year'], // Added Batch Year
+                        items: [], 
+                        emailStatus: row['EmailStatus'], 
+                        deliveryStatus: row['DeliveryStatus'] 
+                    };
                 }
                 newOrdersData[orderId].items.push({ 'Item Name': row['Item Name'], 'Size': row['Size'], 'Color': row['Color'], 'Custom Name': row['Custom Name'] });
             });
@@ -280,7 +289,14 @@
             const result = await triggerAppsScript({ action: 'send_emails' });
             
             if (result.status === 'success') {
-                showToast('Email command sent. Refresh data in a few minutes to see status updates.', 'success');
+                // Optimistic UI update for sending emails
+                Object.values(ordersData).forEach(order => {
+                    if (order.emailStatus !== 'Sent') {
+                        order.emailStatus = 'Sent';
+                    }
+                });
+                displayOrders(); // Re-render the list immediately
+                showToast('UI updated. Sending emails in background.', 'success');
             } else {
                 showToast(result.message, 'error');
             }
@@ -300,19 +316,13 @@
 
              if (result.status === 'success') {
                  // --- Optimistic UI Update ---
-                 // 1. Instantly update the local data object.
                  if (ordersData[orderId]) {
                      ordersData[orderId].deliveryStatus = 'Delivered';
                  }
-
-                 // 2. If the super-admin is viewing the list, refresh it from local data.
                  if (currentUserRole === 'super-admin') {
                      displayOrders();
                  }
-                 
-                 // 3. Inform the user that the update was local and a manual refresh will be needed to confirm.
                  showToast(`Order ${orderId} marked delivered. Refresh data later to sync.`, 'success');
-
              } else {
                  showToast(result.message, 'error');
              }
@@ -337,7 +347,14 @@
                 return `<li class="text-gray-700">${details.join(', ')}</li>`;
             }).join('') + '</ul>';
 
-            DOM.modalContent.innerHTML = `<p><strong>Order ID:</strong> ${order.id}</p><p><strong>Name:</strong> ${order.name}</p><p><strong>Status:</strong> <span class="font-semibold ${deliveryStatus === 'Delivered' ? 'text-green-600' : 'text-yellow-600'}">${deliveryStatus}</span></p><h4 class="font-semibold mt-4 mb-2 text-lg">Items:</h4>${itemsHtml}`;
+            DOM.modalContent.innerHTML = `
+                <p><strong>Order ID:</strong> ${order.id}</p>
+                <p><strong>Name:</strong> ${order.name}</p>
+                <p class="text-sm text-gray-600 -mt-1 mb-2">${order.rollNo || 'No Roll No.'} | ${order.batchYear || 'No Batch'}</p>
+                <p><strong>Status:</strong> <span class="font-semibold ${deliveryStatus === 'Delivered' ? 'text-green-600' : 'text-yellow-600'}">${deliveryStatus}</span></p>
+                <h4 class="font-semibold mt-4 mb-2 text-lg">Items:</h4>
+                ${itemsHtml}`;
+
             DOM.markDeliveredBtn.dataset.orderId = order.id;
             DOM.markDeliveredBtn.disabled = deliveryStatus === 'Delivered';
             DOM.markDeliveredBtn.textContent = deliveryStatus === 'Delivered' ? 'Already Delivered' : 'Mark as Delivered';
