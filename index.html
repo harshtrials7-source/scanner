@@ -134,6 +134,13 @@
         
         document.addEventListener('DOMContentLoaded', handleInitialLoad);
         
+        window.onpopstate = function(event) {
+            // If the modal is open, this event should close it.
+            if (!DOM.orderModal.classList.contains('hidden')) {
+                DOM.orderModal.classList.add('hidden');
+            }
+        };
+
         async function fetchAndProcessData(showLoader = true) {
             if (showLoader) {
                 DOM.setupSection.style.display = 'none';
@@ -221,8 +228,13 @@
         });
 
         DOM.scanButton.addEventListener('click', () => verifyOrder(DOM.qrScanInput.value.trim()));
-        DOM.closeModal.addEventListener('click', () => DOM.orderModal.classList.add('hidden'));
-        DOM.orderModal.addEventListener('click', (e) => { if (e.target === DOM.orderModal) DOM.orderModal.classList.add('hidden'); });
+        
+        DOM.closeModal.addEventListener('click', () => history.back());
+        DOM.orderModal.addEventListener('click', (e) => {
+            if (e.target === DOM.orderModal) {
+                history.back();
+            }
+        });
         
         function displayOrders() {
             DOM.ordersList.innerHTML = '';
@@ -280,7 +292,8 @@
              triggerAppsScript('mark_delivered', { orderId: orderId });
              setTimeout(() => {
                 DOM.actionLoader.classList.add('hidden');
-                DOM.orderModal.classList.add('hidden');
+                // Use history.back() to close the modal and trigger the popstate event
+                history.back();
                 showToast('Update command sent! Refreshing data shortly...', 'success');
                 setTimeout(() => DOM.refreshDataBtn.click(), 2000);
              }, 500);
@@ -294,6 +307,9 @@
         }
 
         function displayOrderInModal(order) {
+            // Force hide the loader every time the modal opens
+            DOM.actionLoader.classList.add('hidden');
+
             const deliveryStatus = order.deliveryStatus || 'Pending';
             const itemsHtml = '<ul class="list-disc pl-5 space-y-1">' + order.items.map(item => {
                 const details = [item['Item Name']];
@@ -309,6 +325,9 @@
             DOM.markDeliveredBtn.textContent = deliveryStatus === 'Delivered' ? 'Already Delivered' : 'Mark as Delivered';
             DOM.markDeliveredBtn.className = `font-bold py-2 px-4 rounded-md transition-colors ${deliveryStatus === 'Delivered' ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`;
             DOM.orderModal.classList.remove('hidden');
+            
+            // Add a state to the browser's history for the back button
+            history.pushState({ modal: 'open' }, `Order ${order.id}`, `#order-${order.id}`);
         }
 
         let toastTimeout;
