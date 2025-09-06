@@ -108,7 +108,7 @@
     <script>
         // --- CONFIGURATION ---
         const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTfs7Nl2r2tn00rXXbk_ZMMuX9mMfLxr_nAIRM9DfHivbhvNmJZIOQvgXKEworzW36hb4YxWj25Ddkh/pub?gid=0&single=true&output=csv";
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz1KgJVN8TTPIw2FPkHvxhoukG2yOkitYat_UCTSIhtYuLcWbn7OtRQVvZnbvOKXShQ/exec";
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzoduKDtRNc88enUU55Qv5CLsS7KIucKrMSMFITsSGWUSnxDc4lq-Fp2tLcUEy_ckNr/exec";
         // -------------------
 
         const DOM = {
@@ -272,7 +272,7 @@
                     method: 'POST',
                     mode: 'no-cors',
                     redirect: 'follow',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // Use text/plain for simple POST
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify(payload)
                 });
                 return { status: 'success', message: 'Request sent to server.' };
@@ -296,7 +296,7 @@
                     }
                 });
                 displayOrders(); // Re-render the list immediately
-                showToast('UI updated. Sending emails in background.', 'success');
+                showToast('UI updated. Sending all emails in background.', 'success');
             } else {
                 showToast(result.message, 'error');
             }
@@ -315,14 +315,14 @@
              history.back();
 
              if (result.status === 'success') {
-                 // --- Optimistic UI Update ---
+                 // Optimistic UI Update
                  if (ordersData[orderId]) {
                      ordersData[orderId].deliveryStatus = 'Delivered';
                  }
                  if (currentUserRole === 'super-admin') {
                      displayOrders();
                  }
-                 showToast(`Order ${orderId} marked delivered. Refresh data later to sync.`, 'success');
+                 showToast(`Order ${orderId} marked delivered locally.`, 'success');
              } else {
                  showToast(result.message, 'error');
              }
