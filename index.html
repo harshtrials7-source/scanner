@@ -57,23 +57,36 @@
             border-radius: 8px;
             overflow: hidden;
         }
+        .config-hidden { display: none; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
 
-    <!-- Role Selection Screen -->
-    <div id="role-selection-section" class="container mx-auto p-8 flex items-center justify-center min-h-screen">
+    <!-- Login/Config Screen -->
+    <div id="setup-section" class="container mx-auto p-8 flex items-center justify-center min-h-screen">
         <div class="bg-white p-8 rounded-lg shadow-md text-center w-full max-w-md">
-            <h1 class="text-3xl font-bold mb-2">Admin Login</h1>
-            <p id="loading-config-msg" class="text-gray-500 mb-6">Initializing...</p>
-            <div class="space-y-4">
+            <h1 id="setup-title" class="text-3xl font-bold mb-2">Admin Login</h1>
+            <p id="setup-message" class="text-gray-500 mb-6">Initializing...</p>
+
+            <!-- Password Login -->
+            <div id="password-section" class="space-y-4">
                 <input type="password" id="password-input" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:outline-none text-center text-lg" placeholder="Enter Password" disabled>
                 <button id="login-btn" class="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-md hover:bg-indigo-700 transition-colors text-lg" disabled>
                     Login
                 </button>
             </div>
+
+            <!-- Firebase Config Input -->
+            <div id="config-section" class="space-y-4 config-hidden">
+                 <textarea id="firebase-config-input" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:outline-none text-sm" rows="6" placeholder="Paste your Firebase Config JSON here"></textarea>
+                 <input type="text" id="app-id-input" class="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:outline-none text-center text-lg" placeholder="Enter your App ID">
+                <button id="save-config-btn" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-md hover:bg-green-700 transition-colors text-lg">
+                    Save Configuration & Login
+                </button>
+            </div>
         </div>
     </div>
+
 
     <!-- Main Application Container -->
     <div id="app-container" class="container mx-auto p-4 md:p-8 hidden">
@@ -82,7 +95,10 @@
                 <h1 class="text-2xl md:text-4xl font-bold text-gray-900">Order Dashboard</h1>
                 <p id="role-display" class="text-gray-600 mt-1"></p>
              </div>
-             <button id="reset-btn" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600 transition-colors">Change Role</button>
+             <div>
+                 <button id="reset-btn" class="bg-red-500 text-white font-bold py-2 px-4 rounded-md hover:bg-red-600 transition-colors">Logout</button>
+                 <button id="clear-config-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-600 transition-colors">Reset Config</button>
+             </div>
         </header>
 
         <!-- Super Admin: Upload Section -->
@@ -153,13 +169,20 @@
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // DOM Elements
-        const roleSelectionSection = document.getElementById('role-selection-section');
-        const loadingConfigMsg = document.getElementById('loading-config-msg');
+        const setupSection = document.getElementById('setup-section');
+        const setupTitle = document.getElementById('setup-title');
+        const setupMessage = document.getElementById('setup-message');
+        const passwordSection = document.getElementById('password-section');
+        const configSection = document.getElementById('config-section');
+        const firebaseConfigInput = document.getElementById('firebase-config-input');
+        const appIdInput = document.getElementById('app-id-input');
+        const saveConfigBtn = document.getElementById('save-config-btn');
         const appContainer = document.getElementById('app-container');
         const passwordInput = document.getElementById('password-input');
         const loginBtn = document.getElementById('login-btn');
         const roleDisplay = document.getElementById('role-display');
         const resetBtn = document.getElementById('reset-btn');
+        const clearConfigBtn = document.getElementById('clear-config-btn');
         const uploadSection = document.getElementById('upload-section');
         const fileUpload = document.getElementById('file-upload');
         const fileNameDisplay = document.getElementById('file-name');
@@ -183,38 +206,45 @@
         let dataDocRef;
         let html5QrCode;
 
-        // --- NEW: Wait for Firebase config then initialize ---
-        function waitForConfigAndInit() {
-            let attempts = 0;
-            const maxAttempts = 50; // Wait for max 5 seconds (50 * 100ms)
+        function handleInitialLoad() {
+            // Priority 1: Check for injected config (Preview Environment)
+            if (typeof window.__firebase_config !== 'undefined' && window.__firebase_config !== '{}') {
+                const config = JSON.parse(window.__firebase_config);
+                const appId = window.__app_id || 'default-order-app';
+                initializeAppLogic(config, appId);
+                return;
+            }
 
-            const interval = setInterval(() => {
-                attempts++;
-                // Check for the global variable injected by the environment
-                if (typeof window.__firebase_config !== 'undefined' && window.__firebase_config !== '{}') {
-                    clearInterval(interval);
-                    initializeAppLogic(); // Found it, start the app
-                } else if (attempts >= maxAttempts) {
-                    clearInterval(interval);
-                    // Still not found after waiting, show final error
-                    loadingConfigMsg.textContent = "Error: Could not load cloud configuration.";
-                    loadingConfigMsg.classList.add('text-red-500');
-                    showToast("CRITICAL ERROR: Firebase config not found.", "error");
-                    console.error("Firebase configuration is missing after waiting. The app cannot start.");
+            // Priority 2: Check for config in localStorage (Local Machine, already configured)
+            const savedConfig = localStorage.getItem('firebaseConfig');
+            const savedAppId = localStorage.getItem('appId');
+            if (savedConfig && savedAppId) {
+                try {
+                    const config = JSON.parse(savedConfig);
+                    initializeAppLogic(config, savedAppId);
+                } catch (e) {
+                    showConfigInputScreen("Error: Saved configuration is invalid. Please re-enter.");
                 }
-            }, 100);
+                return;
+            }
+            
+            // Priority 3: Show config input screen (Local Machine, first time)
+            showConfigInputScreen("One-Time Setup: Please enter your Firebase configuration to use this app locally.");
         }
 
-        // --- NEW: Main application logic is now in its own function ---
-        async function initializeAppLogic() {
+        function showConfigInputScreen(message) {
+            setupTitle.textContent = "Local Setup Required";
+            setupMessage.textContent = message;
+            passwordSection.classList.add('config-hidden');
+            configSection.classList.remove('config-hidden');
+        }
+
+        async function initializeAppLogic(firebaseConfig, appId) {
             try {
-                loadingConfigMsg.textContent = "Configuration loaded. Ready.";
+                setupMessage.textContent = "Configuration loaded. Ready for login.";
                 passwordInput.disabled = false;
                 loginBtn.disabled = false;
-                loginBtn.classList.remove('opacity-50', 'cursor-not-allowed');
 
-                const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'default-order-app';
-                const firebaseConfig = JSON.parse(window.__firebase_config);
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
                 const auth = getAuth(app);
@@ -226,20 +256,19 @@
                 if (currentUserRole) {
                     setupUIForRole(currentUserRole);
                 } else {
-                    roleSelectionSection.classList.remove('hidden');
+                    setupSection.classList.remove('hidden');
                 }
             } catch (error) {
                 console.error("Initialization failed:", error);
                 showToast("App failed to start. Check console for errors.", "error");
-                loadingConfigMsg.textContent = "An error occurred during startup.";
-                loadingConfigMsg.classList.add('text-red-500');
+                setupMessage.textContent = "An error occurred during startup.";
+                setupMessage.classList.add('text-red-500');
                 passwordInput.disabled = true;
                 loginBtn.disabled = true;
-                loginBtn.classList.add('opacity-50', 'cursor-not-allowed');
             }
         }
         
-        document.addEventListener('DOMContentLoaded', waitForConfigAndInit);
+        document.addEventListener('DOMContentLoaded', handleInitialLoad);
         
         async function initializeAuth(auth) {
             try {
@@ -260,17 +289,16 @@
             localStorage.setItem('userRole', role);
             roleDisplay.textContent = `Role: ${role.replace('-', ' ')}`;
             
-            roleSelectionSection.classList.add('hidden');
+            setupSection.classList.add('hidden');
             appContainer.classList.remove('hidden');
             
-            // Listen for data changes from Firestore
             onSnapshot(dataDocRef, (docSnap) => {
                 if (docSnap.exists() && docSnap.data().sheetData) {
                     ordersData = JSON.parse(docSnap.data().sheetData);
                     loadingMessage.classList.add('hidden');
                     scanSection.classList.remove('hidden');
                     if (currentUserRole === 'super-admin') {
-                        uploadSection.classList.remove('hidden'); // Always show upload for super admin
+                        uploadSection.classList.remove('hidden');
                         ordersSection.classList.remove('hidden');
                     }
                     displayOrders();
@@ -317,7 +345,6 @@
             verifyOrder(decodedText);
         };
         
-        // --- EVENT LISTENERS ---
         function handleLogin() {
             const password = passwordInput.value;
             if (password === 'ADMIN') {
@@ -329,6 +356,27 @@
                 passwordInput.value = '';
             }
         }
+
+        function handleSaveConfig() {
+            const configString = firebaseConfigInput.value;
+            const appId = appIdInput.value;
+
+            if (!configString || !appId) {
+                showToast("Please provide both Firebase Config and App ID.", "error");
+                return;
+            }
+
+            try {
+                const config = JSON.parse(configString);
+                localStorage.setItem('firebaseConfig', configString);
+                localStorage.setItem('appId', appId);
+                showToast("Configuration saved!", "success");
+                // Reload the page to use the new config
+                location.reload();
+            } catch (e) {
+                showToast("Invalid Firebase Config JSON.", "error");
+            }
+        }
         
         loginBtn.addEventListener('click', handleLogin);
         passwordInput.addEventListener('keypress', function(event) {
@@ -338,12 +386,22 @@
             }
         });
 
+        saveConfigBtn.addEventListener('click', handleSaveConfig);
+
         resetBtn.addEventListener('click', () => {
             if (html5QrCode && html5QrCode.isScanning) {
                 html5QrCode.stop().catch(err => console.error("Failed to stop scanner", err));
             }
             localStorage.removeItem('userRole');
             location.reload();
+        });
+
+        clearConfigBtn.addEventListener('click', () => {
+             localStorage.removeItem('firebaseConfig');
+             localStorage.removeItem('appId');
+             localStorage.removeItem('userRole');
+             showToast("Configuration cleared. Reloading...", "success");
+             setTimeout(() => location.reload(), 1500);
         });
 
         fileUpload.addEventListener('change', handleFileUpload);
@@ -353,7 +411,6 @@
         orderModal.addEventListener('click', (e) => { if (e.target === orderModal) orderModal.classList.add('hidden'); });
         markDeliveredBtn.addEventListener('click', handleMarkAsDelivered);
 
-        // --- CORE FUNCTIONS ---
         async function updateFirestoreData() {
             try {
                 await setDoc(dataDocRef, { sheetData: JSON.stringify(ordersData) }, { merge: true });
@@ -412,7 +469,7 @@
                             <p class="font-bold text-lg">${order.id} - <span class="font-medium">${order.name}</span></p>
                             <p class="text-sm text-gray-600">${order.email} | ${order.rollNo}</p>
                         </div>
-                        <div class="mt-4 md:mt-0 flex gap-2 items-center">
+                        <div class="mt-4 md:mt-0 flex gap-2 items-center flex-wrap">
                              <span id="status-${order.id}" class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full ${order.status === 'Delivered' ? 'text-green-600 bg-green-200' : 'text-yellow-600 bg-yellow-200'}">${order.status}</span>
                              <span id="email-status-${order.id}" class="text-xs font-semibold inline-block py-1 px-2 uppercase rounded-full ${order.emailSent ? 'text-blue-600 bg-blue-200' : 'text-gray-600 bg-gray-200'}">QR ${order.emailSent ? 'Sent' : 'Unsent'}</span>
                             <button onclick="window.app.sendQrEmail('${order.id}')" class="bg-blue-500 text-white text-sm font-bold py-1 px-3 rounded-md hover:bg-blue-600 transition-colors">Send QR</button>
@@ -443,7 +500,7 @@
             await updateFirestoreData();
             if(!silent) showToast(`Generated email for ${orderId}.`, 'success');
         }
-        window.app = { sendQrEmail }; // Make it globally accessible for onclick
+        window.app = { sendQrEmail };
 
         async function handleSendAllEmails() {
             showToast('Preparing all unsent emails...', 'success');
