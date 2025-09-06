@@ -280,7 +280,12 @@
             const result = await triggerAppsScript({ action: 'send_emails' });
             
             if (result.status === 'success') {
-                showToast('Email command sent! Status updates may take a few minutes.', 'success');
+                showToast('Email command sent! Auto-refreshing in 30 seconds.', 'success');
+                // Add an automatic refresh after a longer delay to allow the sheet cache to update.
+                setTimeout(() => {
+                    console.log("Auto-refreshing data after email send.");
+                    DOM.refreshDataBtn.click();
+                }, 30000); // 30-second delay
             } else {
                 showToast(result.message, 'error');
             }
@@ -299,8 +304,25 @@
              history.back();
 
              if (result.status === 'success') {
-                 showToast('Update command sent! Refreshing data shortly...', 'success');
-                 setTimeout(() => DOM.refreshDataBtn.click(), 2000);
+                 // --- Optimistic UI Update ---
+                 showToast(`Order ${orderId} status updated locally.`, 'success');
+                 
+                 // 1. Instantly update the local data object.
+                 if (ordersData[orderId]) {
+                     ordersData[orderId].deliveryStatus = 'Delivered';
+                 }
+
+                 // 2. If the super-admin is viewing the list, refresh it from local data.
+                 if (currentUserRole === 'super-admin') {
+                     displayOrders();
+                 }
+                 
+                 // 3. Schedule a sync with the server to get the official state later.
+                 setTimeout(() => {
+                    console.log("Syncing with Google Sheet to confirm status...");
+                    DOM.refreshDataBtn.click();
+                 }, 5000); 
+
              } else {
                  showToast(result.message, 'error');
              }
