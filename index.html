@@ -100,7 +100,7 @@
     <script>
         // --- CONFIGURATION ---
         const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQTT3M2Dxt4LMgBmyCkym__CmIbjHcxwpjEssIr5cM-y-gWfxg4cAQ_emFcd7gcP1EDADAH2eMcP9RX/pub?gid=0&single=true&output=csv";
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwxkpEaDFXJKZvTmLui8riEsp6v_FvxLaoi_EGRQEUzGCx8wyt3V86QbMQ_XaXy0LyraQ/exec"; // <-- IMPORTANT: REPLACE WITH YOUR NEW URL
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxQ5JRNIok0S3GddDcwDlzjVzOigWXuc22J6KodvyWBu5addyGtIAT0wB-uG6TpCu6G1Q/exec"; // <-- IMPORTANT: REPLACE WITH YOUR NEW URL
         // -------------------
 
         const DOM = {
@@ -211,7 +211,7 @@
 
         function handleLogin() {
             const pass = DOM.passwordInput.value;
-            if (pass === 'ADMIN') setupUIForRole('super-admin');
+            if (pass === 'MERCH') setupUIForRole('super-admin');
             else if (pass === 'SCANNER') setupUIForRole('scanner-admin');
             else { showToast('Incorrect password.', 'error'); DOM.passwordInput.value = ''; }
         }
